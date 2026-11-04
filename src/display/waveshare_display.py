@@ -2,6 +2,7 @@ import inspect
 import importlib
 import logging
 import sys
+import time
 
 from display.abstract_display import AbstractDisplay
 from PIL import Image
@@ -10,6 +11,16 @@ from plugins.plugin_registry import get_plugin_instance
 
 logger = logging.getLogger(__name__)
 
+ def _power_cycle(self, off_seconds=2.0):
+        """
+        Releases and re-initializes the GPIO/SPI layer, cutting panel power briefly.
+        module_init() must run before module_exit(); exiting an uninitialized native
+        library can segfault.
+        """
+        epdconfig = sys.modules[type(self.epd_display).__module__].epdconfig
+        epdconfig.module_init()
+        epdconfig.module_exit()
+        time.sleep(off_seconds)
 
 def split_image_for_bi_color_epd(image):
     """
@@ -120,8 +131,12 @@ class WaveshareDisplay(AbstractDisplay):
         if not image:
             raise ValueError(f"No image provided.")
 
-        # Assume device was in sleep mode.
-        self.epd_display_init()
+        # Assume device was in sleep mode. #TODO - improve this logic
+        # self.epd_display_init()
+
+        # Fixes deep-sleep / unresponsive display
+        # Power-cycle the panel so it wakes reliably after sleep.
+        self._power_cycle()
 
         # Clear residual pixels before updating the image.
         self.epd_display.Clear()
